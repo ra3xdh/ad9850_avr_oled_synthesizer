@@ -23,3 +23,31 @@ void freq2str(uint32_t freq, char *s)
 
     //s[8] = ' '; s[9] = 'M'; s[10] = 'H'; s[11] = 'z';
 }
+
+void adc2bar(uint16_t adc, char *bar, uint8_t size)
+{
+    uint8_t l = (adc*size)/0xFF;
+
+    bar[0] = 'S';
+    for (uint8_t i = 0; i < size; i++)
+    {
+        if (i<l) bar[i+1] = 0xFF;
+        else bar[i+1] = ' ';
+    }
+}
+
+void swr2str(uint16_t fw, uint16_t rv, char *ss)
+{
+    uint16_t swr = get_swr(fw,rv);
+
+    uint8_t d1 = swr/100;
+    uint8_t d2 = (swr/10)%10;
+    uint8_t d3 = swr%10;
+
+    ss[0] = 'S'; ss[1] = 'W'; ss[2] = 'R'; ss[3] = ' ';
+    ss[4] = dig2char(d1);
+    ss[5] = '.';
+    ss[6] = dig2char(d2);
+    ss[7] = dig2char(d3);
+    ss[8] = 0x00;
+}

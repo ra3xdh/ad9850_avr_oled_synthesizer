@@ -8,6 +8,7 @@
 
 #include "main.h"
 #include "utils.h"
+#include "adc.h"
 #include "lcd_library.h"
 #include "ad9850.h"
 
@@ -53,13 +54,15 @@ static bool update_freq = true;
 
 static uint16_t step = 100;
 static char freq_str[13] = { 0 };
+static char s_bar[14] = { 0 };
+static char s_swr[14] = { 0 };
 
 static options_t options;
 
 void init_gpio();
 void init_interrupt();
 void init_timer();
-void update_lcd();
+void update_lcd(uint16_t rx_lvl, uint16_t fwd, uint16_t ref);
 void load_options();
 void update_dds();
 void update_band();
@@ -113,8 +116,21 @@ void init_timer()
 
 }
 
-void update_lcd()
+void update_lcd(uint16_t rx_lvl, uint16_t fwd, uint16_t ref)
 {
+    lcdGotoXY(0,0);
+    if (fwd > 0x20) {
+        lcdPuts("TX");
+        swr2str(fwd, ref, s_swr);
+        lcdGotoXY(1,5);
+        lcdPuts(s_swr);
+    } else {
+        lcdPuts("RX");
+        adc2bar(rx_lvl, s_bar, 11);
+        lcdGotoXY(1,5);
+        lcdPuts(s_bar);
+    }
+
     if (update_freq) {
         lcdGotoXY(1,0);
         lcdPuts(band_names[options.band_code]);
@@ -167,7 +183,10 @@ ISR (INT1_vect)
 
 ISR(TIMER1_OVF_vect)
 {
-    update_lcd();
+    uint16_t rx_lvl = read_adc(2);
+    uint16_t rev = read_adc(1);
+    uint16_t fwd = read_adc(0);
+    update_lcd(rx_lvl, fwd, rev);
     TCNT1 = 64286;
 }
 
@@ -180,6 +199,7 @@ int main(void)
     init_gpio();
     init_interrupt();
     init_timer();
+    init_adc();
 
     dds_setup();
     dds_reset();
@@ -187,8 +207,6 @@ int main(void)
 
     lcdInit();
     lcdClear();
-    lcdGotoXY(0,0);
-    lcdPuts("RX");
     lcdGotoXY(0,4);
     lcdPuts("LSB");
 
