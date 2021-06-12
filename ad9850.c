@@ -1,4 +1,6 @@
 #include <avr/io.h>
+#include <avr/interrupt.h>
+
 #include "ad9850.h"
 
 #define DDS_PORT PORTB
@@ -63,6 +65,7 @@ void dds_update_freq(float freq)
 {
     // Updates DDS output frequency. Supply frequency in Hz.
 
+    cli();
     uint32_t tuning_word = (freq * 4294967295UL) / DDS_REF;
     dds_write(tuning_word & 0xFF);
     dds_write((tuning_word >> 8) & 0xFF);
@@ -72,4 +75,5 @@ void dds_update_freq(float freq)
 
     DDS_PORT |=  (1 << DDS_LOAD);
     DDS_PORT &= ~(1 << DDS_LOAD);
+    sei();
 }
