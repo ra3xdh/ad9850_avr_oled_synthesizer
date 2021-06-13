@@ -40,14 +40,31 @@ void swr2str(uint16_t fw, uint16_t rv, char *ss)
 {
     uint16_t swr = get_swr(fw,rv);
 
+    uint16_t vfw = (fw*2*0x100)/0x3FF;
+    uint16_t vl = vfw*2; // vload*10
+    uint32_t d = vl*vl;
+    uint16_t pwr = d/50/10; // pwr = W*10
+
     uint8_t d1 = swr/100;
     uint8_t d2 = (swr/10)%10;
     uint8_t d3 = swr%10;
 
-    ss[0] = 'S'; ss[1] = 'W'; ss[2] = 'R'; ss[3] = ' ';
-    ss[4] = dig2char(d1);
-    ss[5] = '.';
-    ss[6] = dig2char(d2);
-    ss[7] = dig2char(d3);
-    ss[8] = 0x00;
+    ss[0] = 'S'; ss[1] = 'W'; ss[2] = 'R';
+    ss[3] = dig2char(d1);
+    ss[4] = '.';
+    ss[5] = dig2char(d2);
+    ss[6] = dig2char(d3);
+    ss[7] = ' ';
+
+    d1 = pwr/100;
+    d2 = (pwr/10)%10;
+    d3 = pwr%10;
+
+    ss[8] = dig2char(d1);
+    ss[9] = dig2char(d2);
+    ss[10] = '.';
+    ss[11] = dig2char(d3);
+    ss[12] = 'W';
+    ss[13] = 0x00;
+
 }

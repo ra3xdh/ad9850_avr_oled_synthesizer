@@ -14,6 +14,8 @@
 
 #define MAX_STEP 10000
 #define MIN_STEP 10
+#define MAX_FREQ 40000000
+#define MIN_FREQ 1000000
 
 #define LED_PIN PORTB4
 
@@ -54,8 +56,8 @@ static bool update_freq = true;
 
 static uint16_t step = 100;
 static char freq_str[13] = { 0 };
-static char s_bar[14] = { 0 };
-static char s_swr[14] = { 0 };
+static char s_bar[15] = { 0 };
+static char s_swr[15] = { 0 };
 
 static options_t options;
 
@@ -122,11 +124,13 @@ void update_lcd(uint16_t rx_lvl, uint16_t fwd, uint16_t ref)
     if (fwd > 0x20) {
         lcdPuts("TX");
         swr2str(fwd, ref, s_swr);
-        lcdGotoXY(1,5);
+        lcdGotoXY(1,4);
         lcdPuts(s_swr);
     } else {
         lcdPuts("RX");
         adc2bar(rx_lvl, s_bar, 11);
+        lcdGotoXY(1,4);
+        lcdPuts(" ");
         lcdGotoXY(1,5);
         lcdPuts(s_bar);
     }
@@ -158,7 +162,7 @@ void update_dds()
 {
     uint32_t vfo_freq = options.rf_freq;
     uint32_t bfo_freq = options.bfo_freq_lsb;
-    if (options.band_code >= BAND_ID_30M) {
+    if (options.band_code > BAND_ID_30M) {
         vfo_freq -= bfo_freq;
     } else {
         vfo_freq += bfo_freq;
@@ -171,10 +175,12 @@ void update_dds()
 ISR (INT1_vect)
 {
     if ((ENC_PIN & (1 << ENC_B)) == 0) {
-        options.rf_freq += step;
+        if (options.rf_freq < MAX_FREQ)
+            options.rf_freq += step;
         PORTB |= (1 << LED_PIN);
     } else {
-        options.rf_freq -= step;
+        if (options.rf_freq > MIN_FREQ)
+            options.rf_freq -= step;
         PORTB &= ~(1 << LED_PIN);
     }
     update_dds();
@@ -215,6 +221,7 @@ int main(void)
 
     bool enc_sw_pressed = false;
     bool btn_band_pressed = false;
+    uint8_t digit = 2;
 
     for(;;) {
 
@@ -223,10 +230,19 @@ int main(void)
         if ((ENC_PIN & (1<<ENC_SW))==0) {
             if (!enc_sw_pressed) {
                 step *= 10;
-                if (step > MAX_STEP) step = MIN_STEP;
+                digit--;
+                if (step > MAX_STEP) {
+                    step = MIN_STEP;
+                    digit = 3;
+                }
+                lcdSetCursor(LCD_CURSOR_ON);
+                lcdSetCursor(LCD_CURSOR_BLINK);
+                lcdGotoXY(1,12);
             }
             enc_sw_pressed = true;
         } else {
+            if (enc_sw_pressed)
+                //lcdSetCursor(LCD_CURSOR_OFF);
             enc_sw_pressed = false;
         }
 
