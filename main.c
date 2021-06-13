@@ -53,6 +53,8 @@ const uint32_t band_freq[BANDS] = { 3500000, 7000000, 10000000, 14000000, 210000
 
 
 static bool update_freq = true;
+static bool hl_digit = false;
+static uint8_t digit = 0;
 
 static uint16_t step = 100;
 static char freq_str[13] = { 0 };
@@ -110,7 +112,7 @@ void init_interrupt()
 void init_timer()
 {
     cli();
-    TCNT1 = 64286; // ~ 10 ms @ 1MHz
+    TCNT1 = 60286; // ~ 10 ms @ 1MHz
     TCCR1A = 0x00;
     TCCR1B = (1<<CS11);
     TIMSK1 = (1<< TOIE1);
@@ -124,13 +126,13 @@ void update_lcd(uint16_t rx_lvl, uint16_t fwd, uint16_t ref)
     if (fwd > 0x20) {
         lcdPuts("TX");
         swr2str(fwd, ref, s_swr);
-        lcdGotoXY(1,4);
+        lcdGotoXY(1,3);
         lcdPuts(s_swr);
     } else {
         lcdPuts("RX");
         adc2bar(rx_lvl, s_bar, 11);
-        lcdGotoXY(1,4);
-        lcdPuts(" ");
+        lcdGotoXY(1,3);
+        lcdPuts("  ");
         lcdGotoXY(1,5);
         lcdPuts(s_bar);
     }
@@ -142,6 +144,13 @@ void update_lcd(uint16_t rx_lvl, uint16_t fwd, uint16_t ref)
         freq2str(options.rf_freq, freq_str);
         lcdPuts(freq_str);
         update_freq = false;
+    }
+
+    if (hl_digit) {
+        lcdSetCursor(LCD_CURSOR_ON);
+        lcdGotoXY(0,12 + digit);
+    } else {
+        lcdSetCursor(LCD_CURSOR_OFF);
     }
 
 }
@@ -190,8 +199,8 @@ ISR (INT1_vect)
 ISR(TIMER1_OVF_vect)
 {
     uint16_t rx_lvl = read_adc(2);
-    uint16_t rev = read_adc(1);
-    uint16_t fwd = read_adc(0);
+    uint16_t fwd = read_adc(1);
+    uint16_t rev = read_adc(0);
     update_lcd(rx_lvl, fwd, rev);
     TCNT1 = 64286;
 }
@@ -221,7 +230,8 @@ int main(void)
 
     bool enc_sw_pressed = false;
     bool btn_band_pressed = false;
-    uint8_t digit = 2;
+    digit = 2;
+    hl_digit = false;
 
     for(;;) {
 
@@ -235,15 +245,14 @@ int main(void)
                     step = MIN_STEP;
                     digit = 3;
                 }
-                lcdSetCursor(LCD_CURSOR_ON);
-                lcdSetCursor(LCD_CURSOR_BLINK);
-                lcdGotoXY(1,12);
+                hl_digit = true;
             }
             enc_sw_pressed = true;
         } else {
-            if (enc_sw_pressed)
-                //lcdSetCursor(LCD_CURSOR_OFF);
-            enc_sw_pressed = false;
+            if (enc_sw_pressed) {
+                enc_sw_pressed = false;
+                hl_digit = false;
+            }
         }
 
         if ((BUTTON_BAND_PIN & (1<<BUTTON_BAND))==0) {

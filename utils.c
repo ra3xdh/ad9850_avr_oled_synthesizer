@@ -40,7 +40,7 @@ void swr2str(uint16_t fw, uint16_t rv, char *ss)
 {
     uint16_t swr = get_swr(fw,rv);
 
-    uint16_t vfw = (fw*2*0x100)/0x3FF;
+    uint16_t vfw = (fw*2*0x100)/0x3FF+300; // bridge volatge mV
     uint16_t vl = vfw*2; // vload*10
     uint32_t d = vl*vl;
     uint16_t pwr = d/50/10; // pwr = W*10
@@ -60,7 +60,8 @@ void swr2str(uint16_t fw, uint16_t rv, char *ss)
     d2 = (pwr/10)%10;
     d3 = pwr%10;
 
-    ss[8] = dig2char(d1);
+    if (d1 != 0) ss[8] = dig2char(d1);
+    else ss[8] = ' ';
     ss[9] = dig2char(d2);
     ss[10] = '.';
     ss[11] = dig2char(d3);
