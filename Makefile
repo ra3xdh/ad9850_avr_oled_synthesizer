@@ -5,7 +5,7 @@ PART=m644
 PROGRAMMER=usbasp
 FUSES=-U lfuse:w:0x62:m -U hfuse:w:0xd9:m -U efuse:w:0xff:m 
 
-OBJECTS=main.o ad9850.o lcd_library.o utils.o adc.o
+OBJECTS=main.o ad9850.o lcd_library.o utils.o adc.o eeprom.o
 
 CC=avr-gcc
 CFLAGS=-Os -Wall -Wextra -mmcu=$(MMCU) -funsigned-char -funsigned-bitfields -fpack-struct -fshort-enums -std=c99 -fdata-sections 

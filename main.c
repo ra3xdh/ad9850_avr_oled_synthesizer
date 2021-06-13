@@ -9,6 +9,7 @@
 #include "main.h"
 #include "utils.h"
 #include "adc.h"
+#include "eeprom.h"
 #include "lcd_library.h"
 #include "ad9850.h"
 
@@ -61,6 +62,8 @@ static char freq_str[13] = { 0 };
 static char s_bar[15] = { 0 };
 static char s_swr[15] = { 0 };
 
+static uint32_t *enc_var = 0;
+
 static options_t options;
 
 void init_gpio();
@@ -68,16 +71,27 @@ void init_interrupt();
 void init_timer();
 void update_lcd(uint16_t rx_lvl, uint16_t fwd, uint16_t ref);
 void load_options();
+void save_options();
 void update_dds();
 void update_band();
 
 void load_options()
 {
-    options.rf_freq = 7040550;
-    options.bfo_freq_usb = 8866600;
-    options.bfo_freq_lsb = 8864500;
-    options.cw_offset = 800;
-    options.band_code = BAND_ID_40M;
+    EEPROM_read_block(0x00, (uint8_t *) &options, sizeof(options_t));
+
+    if (options.board_id != BOARD_ID) {
+        options.board_id = BOARD_ID;
+        options.rf_freq = 7040550;
+        options.bfo_freq_usb = 8866600;
+        options.bfo_freq_lsb = 8864500;
+        options.cw_offset = 800;
+        options.band_code = BAND_ID_40M;
+    }
+}
+
+void save_options()
+{
+    EEPROM_write_block(0x00, (uint8_t *) &options, sizeof(options_t));
 }
 
 void init_gpio()
@@ -141,7 +155,7 @@ void update_lcd(uint16_t rx_lvl, uint16_t fwd, uint16_t ref)
         lcdGotoXY(1,0);
         lcdPuts(band_names[options.band_code]);
         lcdGotoXY(0,8);
-        freq2str(options.rf_freq, freq_str);
+        freq2str(*enc_var, freq_str);
         lcdPuts(freq_str);
         update_freq = false;
     }
@@ -165,6 +179,8 @@ void update_band()
 
     update_freq = true;
 
+    save_options();
+
 }
 
 void update_dds()
@@ -183,32 +199,49 @@ void update_dds()
 
 ISR (INT1_vect)
 {
+
     if ((ENC_PIN & (1 << ENC_B)) == 0) {
-        if (options.rf_freq < MAX_FREQ)
-            options.rf_freq += step;
-        PORTB |= (1 << LED_PIN);
+        if (*enc_var < MAX_FREQ)
+            *enc_var += step;
     } else {
-        if (options.rf_freq > MIN_FREQ)
-            options.rf_freq -= step;
-        PORTB &= ~(1 << LED_PIN);
+        if (*enc_var > MIN_FREQ)
+            *enc_var -= step;
     }
     update_dds();
     update_freq = true;
+
+
 }
 
 ISR(TIMER1_OVF_vect)
 {
+    static uint8_t save_cnt = 0;
+    static uint32_t old_rf_freq = 0;
+
     uint16_t rx_lvl = read_adc(2);
     uint16_t fwd = read_adc(1);
     uint16_t rev = read_adc(0);
     update_lcd(rx_lvl, fwd, rev);
+
+    save_cnt++;
+    if (save_cnt > 200) {
+        PORTB ^= (1 << LED_PIN);
+        if (old_rf_freq != options.rf_freq) {
+            old_rf_freq = options.rf_freq;
+            save_options();
+        }
+        save_cnt = 0;
+    }
+
     TCNT1 = 64286;
+
 }
 
 int main(void)
 {
     _delay_ms(500);
 
+    enc_var = &options.rf_freq;
 
     load_options();
     init_gpio();
@@ -267,10 +300,5 @@ int main(void)
             btn_band_pressed = false;
         }
 
-
-        /*PORTB |= (1 << LED_PIN);
-        _delay_ms(1000);
-        PORTB &= ~(1 << LED_PIN);
-        _delay_ms(1000);*/
     }
 }
