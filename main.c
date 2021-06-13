@@ -37,6 +37,11 @@
 
 #define BANDS 6
 
+#define SETUP_BFO_LSB 0
+#define SETUP_BFO_USB 1
+#define SETUP_EXIT    2
+#define NO_SETUP      3
+
 #define BAND_ID_80M 0
 #define BAND_ID_40M 1
 #define BAND_ID_30M 2
@@ -56,6 +61,8 @@ const uint32_t band_freq[BANDS] = { 3500000, 7000000, 10000000, 14000000, 210000
 static bool update_freq = true;
 static bool hl_digit = false;
 static uint8_t digit = 0;
+static bool setup_mode = false;
+uint8_t setup_lvl = NO_SETUP;
 
 static uint16_t step = 100;
 static char freq_str[13] = { 0 };
@@ -136,25 +143,36 @@ void init_timer()
 
 void update_lcd(uint16_t rx_lvl, uint16_t fwd, uint16_t ref)
 {
-    lcdGotoXY(0,0);
-    if (fwd > 0x20) {
-        lcdPuts("TX");
-        swr2str(fwd, ref, s_swr);
-        lcdGotoXY(1,3);
-        lcdPuts(s_swr);
-    } else {
-        lcdPuts("RX");
-        adc2bar(rx_lvl, s_bar, 11);
-        lcdGotoXY(1,3);
-        lcdPuts("  ");
-        lcdGotoXY(1,5);
-        lcdPuts(s_bar);
+
+    if (!setup_mode) {
+
+        lcdGotoXY(0,4);
+        lcdPuts("LSB");
+
+        lcdGotoXY(0,0);
+        if (fwd > 0x20) {
+            lcdPuts("TX");
+            swr2str(fwd, ref, s_swr);
+            lcdGotoXY(1,3);
+            lcdPuts(s_swr);
+        } else {
+            lcdPuts("RX");
+            adc2bar(rx_lvl, s_bar, 11);
+            lcdGotoXY(1,3);
+            lcdPuts("  ");
+            lcdGotoXY(1,5);
+            lcdPuts(s_bar);
+        }
     }
 
+    uint8_t ypos = 0;
+    if (setup_mode) ypos = 1;
     if (update_freq) {
-        lcdGotoXY(1,0);
-        lcdPuts(band_names[options.band_code]);
-        lcdGotoXY(0,8);
+        if (!setup_mode) {
+            lcdGotoXY(1,0);
+            lcdPuts(band_names[options.band_code]);
+        }
+        lcdGotoXY(ypos,8);
         freq2str(*enc_var, freq_str);
         lcdPuts(freq_str);
         update_freq = false;
@@ -162,7 +180,7 @@ void update_lcd(uint16_t rx_lvl, uint16_t fwd, uint16_t ref)
 
     if (hl_digit) {
         lcdSetCursor(LCD_CURSOR_ON);
-        lcdGotoXY(0,12 + digit);
+        lcdGotoXY(ypos,12 + digit);
     } else {
         lcdSetCursor(LCD_CURSOR_OFF);
     }
@@ -237,6 +255,34 @@ ISR(TIMER1_OVF_vect)
 
 }
 
+void next_setup()
+{
+    cli();
+    switch (setup_lvl) {
+        case SETUP_BFO_LSB:
+            lcdGotoXY(0,0);
+            lcdPuts("Set BFO LSB freq.");
+            enc_var = &options.bfo_freq_lsb;
+            break;
+        case SETUP_BFO_USB:
+            lcdGotoXY(0,0);
+            lcdPuts("Set BFO USB freq.");
+            enc_var = &options.bfo_freq_usb;
+            break;
+        case SETUP_EXIT:
+            enc_var = &options.rf_freq;
+            setup_mode = false;
+            save_options();
+            lcdClear();
+            break;
+        default: break;
+    }
+
+    update_freq = true;
+    update_lcd(1,1,1);
+    sei();
+}
+
 int main(void)
 {
     _delay_ms(500);
@@ -255,8 +301,19 @@ int main(void)
 
     lcdInit();
     lcdClear();
-    lcdGotoXY(0,4);
-    lcdPuts("LSB");
+
+    if ((ENC_PIN & (1<<ENC_SW))==0) {
+        cli();
+        _delay_ms(1000);
+        if ((ENC_PIN & (1<<ENC_SW))==0) {
+            setup_mode = true;
+            setup_lvl = SETUP_BFO_LSB;
+        }
+        sei();
+    }
+
+    if (!setup_mode) {
+    }
 
     BAND_PORT = 0x00;
     BAND_PORT |= (1 << options.band_code);
@@ -266,9 +323,9 @@ int main(void)
     digit = 2;
     hl_digit = false;
 
-    for(;;) {
+    if (setup_mode) next_setup();
 
-        //_delay_ms(10);
+    for(;;) {
 
         if ((ENC_PIN & (1<<ENC_SW))==0) {
             if (!enc_sw_pressed) {
@@ -290,10 +347,16 @@ int main(void)
 
         if ((BUTTON_BAND_PIN & (1<<BUTTON_BAND))==0) {
             if (!btn_band_pressed) {
-                options.band_code++;
-                if (options.band_code >= BANDS)
-                    options.band_code = 0;
-                update_band();
+                if (setup_mode) {
+                    setup_lvl++;
+                    next_setup();
+                } else {
+                    options.band_code++;
+                    if (options.band_code >= BANDS)
+                        options.band_code = 0;
+                    update_band();
+
+                }
             }
             btn_band_pressed = true;
         } else {
