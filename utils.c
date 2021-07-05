@@ -44,6 +44,7 @@ void swr2str(uint16_t fw, uint16_t rv, char *ss)
     uint16_t vl = vfw*2; // vload*10
     uint32_t d = vl*vl;
     uint16_t pwr = d/50/10; // pwr = W*10
+    pwr = pwr/2;
 
     uint8_t d1 = swr/100;
     uint8_t d2 = (swr/10)%10;
