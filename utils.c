@@ -31,7 +31,7 @@ void adc2bar(uint16_t adc, char *bar, uint8_t size)
     bar[0] = 'S';
     for (uint8_t i = 0; i < size; i++)
     {
-        if (i<l) bar[i+1] = 0xFF;
+        if (i<l) bar[i+1] = '+';
         else bar[i+1] = ' ';
     }
 }

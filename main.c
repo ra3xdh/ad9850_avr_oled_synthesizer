@@ -1,4 +1,4 @@
-#define F_CPU 1000000UL
+//#define F_CPU 1000000UL
 
 #include <stdbool.h>
 
@@ -10,13 +10,17 @@
 #include "utils.h"
 #include "adc.h"
 #include "eeprom.h"
-#include "lcd_library.h"
+#include "lcd.h"
 #include "ad9850.h"
+
+#include "sevenseg_digit.h"
 
 #define MAX_STEP 10000
 #define MIN_STEP 10
 #define MAX_FREQ 40000000
 #define MIN_FREQ 1000000
+
+#define UPD_TMR 50000
 
 #define LED_PIN PORTB4
 
@@ -59,6 +63,7 @@ const uint32_t band_freq[BANDS] = { 3500000, 7000000, 10000000, 14000000, 210000
 
 
 static bool update_freq = true;
+static bool flag_update_lcd = false;
 static bool hl_digit = false;
 static uint8_t digit = 0;
 static bool setup_mode = false;
@@ -76,7 +81,7 @@ static options_t options;
 void init_gpio();
 void init_interrupt();
 void init_timer();
-void update_lcd(uint16_t rx_lvl, uint16_t fwd, uint16_t ref);
+void update_lcd();
 void load_options();
 void save_options();
 void update_dds();
@@ -133,7 +138,7 @@ void init_interrupt()
 void init_timer()
 {
     cli();
-    TCNT1 = 60286; // ~ 10 ms @ 1MHz
+    TCNT1 = 62286; // ~ 10 ms @ 1MHz
     TCCR1A = 0x00;
     TCCR1B = (1<<CS11);
     TIMSK1 = (1<< TOIE1);
@@ -141,49 +146,79 @@ void init_timer()
 
 }
 
-void update_lcd(uint16_t rx_lvl, uint16_t fwd, uint16_t ref)
+void update_lcd()
 {
+
+    uint16_t rx_lvl = read_adc(2);
+    uint16_t fwd = read_adc(1);
+    uint16_t ref = read_adc(0);
 
     if (!setup_mode) {
 
-        lcdGotoXY(0,4);
-        lcdPuts("LSB");
+        lcd_gotoxy(7,0);
+        lcd_puts("LSB");
 
-        lcdGotoXY(0,0);
+        lcd_gotoxy(18,0);
         if (fwd > 0x20) {
-            lcdPuts("TX");
-            swr2str(fwd, ref, s_swr);
-            lcdGotoXY(1,3);
-            lcdPuts(s_swr);
+            lcd_puts("TX");
         } else {
-            lcdPuts("RX");
-            adc2bar(rx_lvl, s_bar, 11);
-            lcdGotoXY(1,3);
-            lcdPuts("  ");
-            lcdGotoXY(1,5);
-            lcdPuts(s_bar);
+            lcd_puts("RX");
         }
+
+        adc2bar(rx_lvl, s_bar, 11);
+        lcd_gotoxy(3,6);
+        lcd_puts(s_bar);
+
+        swr2str(fwd, ref, s_swr);
+        lcd_gotoxy(3,7);
+        if (fwd > 0x20) {
+            lcd_puts(s_swr);
+        } else {
+            lcd_puts_p("                  ");
+        }
+
+
+        lcd_gotoxy(0,0);
+        lcd_puts(band_names[options.band_code]);
+
+
+        //render_digit(64,32,8,30,1);
+        //render_digit(25,32,6,30,1);
+        lcd_fillRect(64,32,66,48,WHITE);
+        lcd_fillRect(64,32,78,34,WHITE);
+    } else {
+        switch (setup_lvl) {
+            case SETUP_BFO_LSB:
+                lcd_gotoxy(0,0);
+                lcd_puts("Set BFO LSB freq.");
+                break;
+            case SETUP_BFO_USB:
+                lcd_gotoxy(0,0);
+                lcd_puts("Set BFO USB freq.");
+                break;
+            default: break;
+        }
+
+
     }
 
-    uint8_t ypos = 0;
-    if (setup_mode) ypos = 1;
     if (update_freq) {
-        if (!setup_mode) {
-            lcdGotoXY(1,0);
-            lcdPuts(band_names[options.band_code]);
-        }
-        lcdGotoXY(ypos,8);
+        lcd_gotoxy(1,2);
+        lcd_charMode(DOUBLESIZE);
         freq2str(*enc_var, freq_str);
-        lcdPuts(freq_str);
+        lcd_puts(freq_str);
         update_freq = false;
+        lcd_charMode(NORMALSIZE);
     }
 
     if (hl_digit) {
-        lcdSetCursor(LCD_CURSOR_ON);
-        lcdGotoXY(ypos,12 + digit);
+        //lcdSetCursor(LCD_CURSOR_ON);
+        //lcdGotoXY(ypos,12 + digit);
     } else {
-        lcdSetCursor(LCD_CURSOR_OFF);
+        //lcdSetCursor(LCD_CURSOR_OFF);
     }
+
+    lcd_display();
 
 }
 
@@ -217,8 +252,12 @@ void update_dds()
 
 ISR (INT1_vect)
 {
+    cli();
+    static uint8_t n = 0;
+    n++;
+    if (n%2) return;
 
-    if ((ENC_PIN & (1 << ENC_B)) == 0) {
+    if (ENC_PIN & (1 << ENC_B)) {
         if (*enc_var < MAX_FREQ)
             *enc_var += step;
     } else {
@@ -227,7 +266,7 @@ ISR (INT1_vect)
     }
     update_dds();
     update_freq = true;
-
+    sei();
 
 }
 
@@ -236,10 +275,11 @@ ISR(TIMER1_OVF_vect)
     static uint8_t save_cnt = 0;
     static uint32_t old_rf_freq = 0;
 
-    uint16_t rx_lvl = read_adc(2);
+    /*uint16_t rx_lvl = read_adc(2);
     uint16_t fwd = read_adc(1);
     uint16_t rev = read_adc(0);
-    update_lcd(rx_lvl, fwd, rev);
+    update_lcd(rx_lvl, fwd, rev);*/
+    flag_update_lcd = true;
 
     save_cnt++;
     if (save_cnt > 200) {
@@ -251,7 +291,7 @@ ISR(TIMER1_OVF_vect)
         save_cnt = 0;
     }
 
-    TCNT1 = 64286;
+    TCNT1 = UPD_TMR;
 
 }
 
@@ -260,26 +300,22 @@ void next_setup()
     cli();
     switch (setup_lvl) {
         case SETUP_BFO_LSB:
-            lcdGotoXY(0,0);
-            lcdPuts("Set BFO LSB freq.");
             enc_var = &options.bfo_freq_lsb;
             break;
         case SETUP_BFO_USB:
-            lcdGotoXY(0,0);
-            lcdPuts("Set BFO USB freq.");
             enc_var = &options.bfo_freq_usb;
             break;
         case SETUP_EXIT:
             enc_var = &options.rf_freq;
             setup_mode = false;
             save_options();
-            lcdClear();
+            lcd_clear_buffer();
             break;
         default: break;
     }
 
     update_freq = true;
-    update_lcd(1,1,1);
+    update_lcd();
     sei();
 }
 
@@ -291,16 +327,7 @@ int main(void)
 
     load_options();
     init_gpio();
-    init_interrupt();
-    init_timer();
-    init_adc();
 
-    dds_setup();
-    dds_reset();
-    update_dds();
-
-    lcdInit();
-    lcdClear();
 
     if ((ENC_PIN & (1<<ENC_SW))==0) {
         cli();
@@ -312,8 +339,19 @@ int main(void)
         sei();
     }
 
-    if (!setup_mode) {
-    }
+
+    init_interrupt();
+    init_timer();
+    init_adc();
+
+    dds_setup();
+    dds_reset();
+    update_dds();
+
+    lcd_init(LCD_DISP_ON);
+    lcd_set_contrast(0xFF);
+    //lcdClear();
+
 
     BAND_PORT = 0x00;
     BAND_PORT |= (1 << options.band_code);
@@ -326,6 +364,11 @@ int main(void)
     if (setup_mode) next_setup();
 
     for(;;) {
+
+        if (flag_update_lcd) {
+            update_lcd();
+            flag_update_lcd = false;
+        }
 
         if ((ENC_PIN & (1<<ENC_SW))==0) {
             if (!enc_sw_pressed) {

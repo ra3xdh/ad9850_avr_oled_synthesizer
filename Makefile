@@ -3,12 +3,12 @@ PROJECT=trx_ad9850
 MMCU=atmega644
 PART=m644
 PROGRAMMER=usbasp
-FUSES=-U lfuse:w:0x62:m -U hfuse:w:0xd9:m -U efuse:w:0xff:m 
+FUSES=-U lfuse:w:0xf7:m -U hfuse:w:0xd9:m -U efuse:w:0xff:m 
 
-OBJECTS=main.o ad9850.o lcd_library.o utils.o adc.o eeprom.o
+OBJECTS=main.o ad9850.o lcd.o utils.o adc.o eeprom.o font.o i2c.o sevenseg_digit.o
 
 CC=avr-gcc
-CFLAGS=-Os -Wall -Wextra -mmcu=$(MMCU) -funsigned-char -funsigned-bitfields -fpack-struct -fshort-enums -std=c99 -fdata-sections 
+CFLAGS=-Os -Wall -Wextra -mmcu=$(MMCU) -funsigned-char -funsigned-bitfields -fpack-struct -fshort-enums -std=c99 -fdata-sections -DF_CPU=20000000UL 
 OBJ2HEX=avr-objcopy
 
 
