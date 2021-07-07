@@ -99,7 +99,8 @@ const uint8_t init_sequence [] PROGMEM = {    // Initialization Sequence
 
 
 };
-#pragma mark LCD COMMUNICATION
+
+//#pragma mark LCD COMMUNICATION
 void lcd_command(uint8_t cmd[], uint8_t size) {
 #if defined I2C
     i2c_start((LCD_I2C_ADR << 1) | 0);
@@ -136,8 +137,9 @@ void lcd_data(uint8_t data[], uint16_t size) {
     LCD_PORT |= (1 << CS_PIN);
 #endif
 }
-#pragma mark -
-#pragma mark GENERAL FUNCTIONS
+
+//#pragma mark -
+//#pragma mark GENERAL FUNCTIONS
 void lcd_init(uint8_t dispAttr){
 #if defined I2C
     i2c_init();
@@ -383,8 +385,8 @@ void lcd_puts_p(const char* progmem_s){
     }
 }
 #ifdef GRAPHICMODE
-#pragma mark -
-#pragma mark GRAPHIC FUNCTIONS
+//#pragma mark -
+//#pragma mark GRAPHIC FUNCTIONS
 uint8_t lcd_drawPixel(uint8_t x, uint8_t y, uint8_t color){
     if( x > DISPLAY_WIDTH-1 || y > (DISPLAY_HEIGHT-1)) return 1; // out of Display
 
@@ -424,7 +426,7 @@ uint8_t lcd_drawRect(uint8_t px1, uint8_t py1, uint8_t px2, uint8_t py2, uint8_t
     return result;
 }
 uint8_t lcd_fillRect(uint8_t px1, uint8_t py1, uint8_t px2, uint8_t py2, uint8_t color){
-    uint8_t result;
+    uint8_t result = 0;
 
     if( px1 > px2){
         uint8_t temp = px1;
@@ -483,9 +485,10 @@ uint8_t lcd_fillCircle(uint8_t center_x, uint8_t center_y, uint8_t radius, uint8
     return result;
 }
 uint8_t lcd_drawBitmap(uint8_t x, uint8_t y, const uint8_t *picture, uint8_t width, uint8_t height, uint8_t color){
-    uint8_t result,i,j, byteWidth = (width+7)/8;
-    for (j = 0; j < height; j++) {
-        for(i=0; i < width;i++){
+    uint8_t result = 0;
+    uint8_t byteWidth = (width+7)/8;
+    for (uint8_t j = 0; j < height; j++) {
+        for(uint8_t i=0; i < width;i++){
             if(pgm_read_byte(picture + j * byteWidth + i / 8) & (128 >> (i & 7))){
                 result = lcd_drawPixel(x+i, y+j, color);
             } else {

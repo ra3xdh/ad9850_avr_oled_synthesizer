@@ -15,6 +15,8 @@
 
 #include "sevenseg_digit.h"
 
+#include "vektor-zeichen.h"
+
 #define MAX_STEP 10000
 #define MIN_STEP 10
 #define MAX_FREQ 40000000
@@ -58,18 +60,19 @@
 #define USB_OUT   6
 #define PTT_IN    7
 
-char band_names[BANDS][3] = { "80", "40", "30", "20", "15", "10" };
+char band_names[BANDS][4] = { "80m", "40m", "30m", "20m", "15m", "10m" };
 const uint32_t band_freq[BANDS] = { 3500000, 7000000, 10000000, 14000000, 21000000, 28000000 };
+char step_names[4][6] = { "10kHz", "1kHz", "100Hz", "10Hz"};
 
 
 static bool update_freq = true;
 static bool flag_update_lcd = false;
 static bool hl_digit = false;
-static uint8_t digit = 0;
 static bool setup_mode = false;
 uint8_t setup_lvl = NO_SETUP;
 
 static uint16_t step = 100;
+static uint8_t step_idx = 2;
 static char freq_str[13] = { 0 };
 static char s_bar[15] = { 0 };
 static char s_swr[15] = { 0 };
@@ -77,6 +80,8 @@ static char s_swr[15] = { 0 };
 static uint32_t *enc_var = 0;
 
 static options_t options;
+
+static vecfont_t font;
 
 void init_gpio();
 void init_interrupt();
@@ -153,10 +158,14 @@ void update_lcd()
     uint16_t fwd = read_adc(1);
     uint16_t ref = read_adc(0);
 
+    lcd_clear_buffer();
+
     if (!setup_mode) {
 
         lcd_gotoxy(7,0);
         lcd_puts("LSB");
+        lcd_gotoxy(12,0);
+        lcd_puts(step_names[step_idx]);
 
         lcd_gotoxy(18,0);
         if (fwd > 0x20) {
@@ -184,8 +193,9 @@ void update_lcd()
 
         //render_digit(64,32,8,30,1);
         //render_digit(25,32,6,30,1);
-        lcd_fillRect(64,32,66,48,WHITE);
-        lcd_fillRect(64,32,78,34,WHITE);
+        //lcd_fillRect(64,32,66,48,WHITE);
+        //lcd_fillRect(64,32,78,34,WHITE);
+
     } else {
         switch (setup_lvl) {
             case SETUP_BFO_LSB:
@@ -203,20 +213,20 @@ void update_lcd()
     }
 
     if (update_freq) {
-        lcd_gotoxy(1,2);
-        lcd_charMode(DOUBLESIZE);
-        freq2str(*enc_var, freq_str);
-        lcd_puts(freq_str);
         update_freq = false;
-        lcd_charMode(NORMALSIZE);
     }
 
-    if (hl_digit) {
-        //lcdSetCursor(LCD_CURSOR_ON);
-        //lcdGotoXY(ypos,12 + digit);
-    } else {
-        //lcdSetCursor(LCD_CURSOR_OFF);
-    }
+    freq2str(*enc_var, freq_str);
+    font.zoom = 2;
+    font.text = freq_str;
+    font.start.x = 4;
+    font.start.y = 32;
+    while (!vecfont_draw_letters(&font));
+    font.start.x = 106;
+    font.start.y = 32;
+    font.zoom = 1;
+    font.text = "MHz";
+    while (!vecfont_draw_letters(&font));
 
     lcd_display();
 
@@ -319,6 +329,16 @@ void next_setup()
     sei();
 }
 
+static void beam_skip(void)
+{
+
+}
+
+static void beam_xy (vf_uint_t x, vf_uint_t y)
+{
+    lcd_drawPixel(x,64-y,WHITE);
+}
+
 int main(void)
 {
     _delay_ms(500);
@@ -328,6 +348,12 @@ int main(void)
     load_options();
     init_gpio();
 
+    font.zoom = 2;
+    font.start.x = 64;
+    font.start.y = 32;
+    font.text = "";
+    font.beam_skip = beam_skip;
+    font.beam_xy = beam_xy;
 
     if ((ENC_PIN & (1<<ENC_SW))==0) {
         cli();
@@ -358,7 +384,6 @@ int main(void)
 
     bool enc_sw_pressed = false;
     bool btn_band_pressed = false;
-    digit = 2;
     hl_digit = false;
 
     if (setup_mode) next_setup();
@@ -373,10 +398,10 @@ int main(void)
         if ((ENC_PIN & (1<<ENC_SW))==0) {
             if (!enc_sw_pressed) {
                 step *= 10;
-                digit--;
+                step_idx--;
                 if (step > MAX_STEP) {
                     step = MIN_STEP;
-                    digit = 3;
+                    step_idx = 3;
                 }
                 hl_digit = true;
             }

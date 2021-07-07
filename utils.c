@@ -17,11 +17,14 @@ void freq2str(uint32_t freq, char *s)
     s[1] = dig2char(d[1]);
     s[2] = '.';
 
-    for (int i = 2; i < 7; i++) {
-        s[i+1]=dig2char(d[i]);
+    uint8_t m = 1;
+    for (uint8_t i = 2; i < 7; i++) {
+        s[i+m] = dig2char(d[i]);
+        if (i==4) {
+            m = 2;
+            s[i+m] = '.';
+        }
     }
-
-    //s[8] = ' '; s[9] = 'M'; s[10] = 'H'; s[11] = 'z';
 }
 
 void adc2bar(uint16_t adc, char *bar, uint8_t size)
