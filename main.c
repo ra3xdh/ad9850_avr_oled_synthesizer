@@ -14,6 +14,7 @@
 #include "ad9850.h"
 
 #include "sevenseg_digit.h"
+#include "bar_indicator.h"
 
 #include "vektor-zeichen.h"
 
@@ -174,9 +175,7 @@ void update_lcd()
             lcd_puts("RX");
         }
 
-        adc2bar(rx_lvl, s_bar, 11);
-        lcd_gotoxy(3,6);
-        lcd_puts(s_bar);
+        render_bar_indicator(4,40,122,8,30,rx_lvl);
 
         swr2str(fwd, ref, s_swr);
         lcd_gotoxy(3,7);
