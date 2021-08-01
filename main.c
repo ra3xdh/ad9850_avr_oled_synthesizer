@@ -42,6 +42,11 @@
 #define BUTTON_BAND_DDR  DDRD
 #define BUTTON_BAND      0
 
+#define BUTTON_USB_PORT PORTA
+#define BUTTON_USB_PIN  PINA
+#define BUTTON_USB_DDR  DDRA
+#define BUTTON_USB      6
+
 #define BANDS 6
 
 #define SETUP_BFO_LSB 0
@@ -57,6 +62,7 @@
 #define BAND_ID_10M 5
 
 #define BAND_PORT PORTC
+#define USB_PORT  PORTC
 #define BAND_DDR  DDRC
 #define USB_OUT   6
 #define PTT_IN    7
@@ -75,7 +81,7 @@ uint8_t setup_lvl = NO_SETUP;
 static uint16_t step = 100;
 static uint8_t step_idx = 2;
 static char freq_str[13] = { 0 };
-static char s_bar[15] = { 0 };
+//static char s_bar[15] = { 0 };
 static char s_swr[15] = { 0 };
 
 static uint32_t *enc_var = 0;
@@ -104,6 +110,7 @@ void load_options()
         options.bfo_freq_lsb = 8864500;
         options.cw_offset = 800;
         options.band_code = BAND_ID_40M;
+        options.invert_sb = false;
     }
 }
 
@@ -124,6 +131,9 @@ void init_gpio()
 
     BUTTON_BAND_DDR &= ~(1<<BUTTON_BAND);
     BUTTON_BAND_PORT |= (1<<BUTTON_BAND);
+
+    BUTTON_USB_DDR &= ~(1<<BUTTON_USB);
+    BUTTON_USB_PORT |= (1<<BUTTON_USB);
 
     BAND_DDR = 0x7F;
     BAND_PORT = 0x80;
@@ -164,9 +174,21 @@ void update_lcd()
     if (!setup_mode) {
 
         lcd_gotoxy(7,0);
-        lcd_puts("LSB");
-        lcd_gotoxy(12,0);
-        lcd_puts(step_names[step_idx]);
+        bool lsb = false;
+        if (options.invert_sb) {
+            if (options.band_code > BAND_ID_30M) lsb = true;
+            else lsb = false;
+        } else {
+            if (options.band_code > BAND_ID_30M) lsb = false;
+            else lsb = true;
+        }
+        if (lsb) lcd_puts("LSB");
+        else lcd_puts("USB");
+
+        if (hl_digit) {
+            lcd_gotoxy(12,0);
+            lcd_puts(step_names[step_idx]);
+        }
 
         lcd_gotoxy(18,0);
         if (fwd > 0x20) {
@@ -181,10 +203,7 @@ void update_lcd()
         lcd_gotoxy(3,7);
         if (fwd > 0x20) {
             lcd_puts(s_swr);
-        } else {
-            lcd_puts_p("                  ");
         }
-
 
         lcd_gotoxy(0,0);
         lcd_puts(band_names[options.band_code]);
@@ -237,7 +256,23 @@ void update_band()
     update_dds();
 
     BAND_PORT = 0x80;
-    BAND_PORT |= (1 << options.band_code);
+    uint8_t band_pin = 0;
+    switch (options.band_code) {
+    case BAND_ID_80M : band_pin = 2;
+                       break;
+    case BAND_ID_40M : band_pin = 1;
+                       break;
+    case BAND_ID_30M : band_pin = 0;
+                       break;
+    case BAND_ID_20M : band_pin = 3;
+                       break;
+    case BAND_ID_15M : band_pin = 4;
+                       break;
+    case BAND_ID_10M : band_pin = 5;
+                       break;
+    default : break;
+    }
+    BAND_PORT |= (1 << band_pin);
 
     update_freq = true;
 
@@ -249,6 +284,9 @@ void update_dds()
 {
     uint32_t vfo_freq = options.rf_freq;
     uint32_t bfo_freq = options.bfo_freq_lsb;
+
+    if (options.invert_sb) bfo_freq = options.bfo_freq_usb;
+
     if (options.band_code > BAND_ID_30M) {
         vfo_freq -= bfo_freq;
     } else {
@@ -383,6 +421,7 @@ int main(void)
 
     bool enc_sw_pressed = false;
     bool btn_band_pressed = false;
+    bool btn_usb_pressed = false;
     hl_digit = false;
 
     if (setup_mode) next_setup();
@@ -429,6 +468,19 @@ int main(void)
         } else {
             btn_band_pressed = false;
         }
+
+        if ((BUTTON_USB_PIN & (1<<BUTTON_USB))==0) {
+            if (!btn_usb_pressed) {
+                if (!setup_mode) {
+                  PORTC ^= (1 << USB_OUT);
+                  options.invert_sb ^= 1;
+                }
+            }
+            btn_usb_pressed = true;
+        } else {
+            btn_usb_pressed = false;
+        }
+
 
     }
 }

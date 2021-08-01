@@ -11,6 +11,7 @@ typedef struct struc_options_t {
     uint32_t bfo_freq_lsb;
     uint32_t cw_offset;
     bool ext_bfo;
+    bool invert_sb;
 } options_t;
 
 #endif
